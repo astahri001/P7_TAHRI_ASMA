@@ -1,7 +1,8 @@
+import json
 import pickle
+from urllib.request import urlopen
 
 import matplotlib.pyplot as plt
-import numpy as np
 import pandas as pd
 import seaborn as sns
 import shap
@@ -13,9 +14,32 @@ import streamlit.components.v1 as components
 model_load = pickle.load(open('model_shap.md', 'rb'))
 shap_values = pickle.load(open('shap_val_f', 'rb'))
 
-features = ['EXT_SOURCE_3', 'AMT_REQ_CREDIT_BUREAU_QRT', 'AMT_REQ_CREDIT_BUREAU_YEAR', 'EXT_SOURCE_2',
-            'DAYS_EMPLOYED', 'DAYS_LAST_PHONE_CHANGE', 'OBS_30_CNT_SOCIAL_CIRCLE', 'REGION_POPULATION_RELATIVE',
-            'CNT_FAM_MEMBERS', 'DAYS_ID_PUBLISH', 'AMT_ANNUITY']
+features = ['EXT_SOURCE_2',
+            'EXT_SOURCE_3',
+            'CREDIT_TO_ANNUITY_RATIO',
+            'DAYS_BIRTH',
+            'PROPORTION_LIFE_EMPLOYED',
+            'CREDIT_TO_ANNUITY_RATIO_BY_AGE',
+            'DAYS_ID_PUBLISH',
+            'DAYS_REGISTRATION',
+            'DAYS_EMPLOYED',
+            'DAYS_LAST_PHONE_CHANGE',
+            'INCOME_TO_ANNUITY_RATIO_BY_AGE',
+            'AMT_ANNUITY',
+            'INCOME_TO_ANNUITY_RATIO',
+            'INCOME_TO_CREDIT_RATIO',
+            'AMT_CREDIT',
+            'REGION_POPULATION_RELATIVE',
+            'AMT_GOODS_PRICE',
+            'INCOME_TO_FAMILYSIZE_RATIO',
+            'AMT_INCOME_TOTAL',
+            'HOUR_APPR_PROCESS_START',
+            'AMT_REQ_CREDIT_BUREAU_YEAR',
+            'OBS_30_CNT_SOCIAL_CIRCLE',
+            'OBS_60_CNT_SOCIAL_CIRCLE',
+            'CNT_FAM_MEMBERS',
+            'AMT_REQ_CREDIT_BUREAU_QRT']
+
 best_parameters = {'colsample_by_tree': 0.6000000000000001,
                    'learning_rate': 0.026478707430398492,
                    'max_depth': 28.0,
@@ -35,7 +59,7 @@ st.sidebar.header("customer's ID")
 
 # Load Dataframe
 
-input_id = st.sidebar.text_input("Please enter the customer's ID", '136383')
+input_id = st.sidebar.text_input("Please enter the customer's ID", '253286')
 input_id = int(input_id)
 
 
@@ -55,15 +79,27 @@ def get_red_color(url):
                 unsafe_allow_html=True)
 
 
-def predict(model, id_client, df):
-    data_1 = df.drop('TARGET', axis=1)
-    prediction_result = model.predict_proba(pd.DataFrame(data_1.loc[id_client]).transpose())[:, 1]
-    prediction_bool = np.array((prediction_result > best_parameters['solvability_threshold']) > 0) * 1
-    if prediction_bool == 0:
-        prediction_decision = 'Loan approved'
-    else:
-        prediction_decision = 'Loan refused'
+def get_API_decision(ID):
+    API_url = "https://oc-proejt7.herokuapp.com/predict/" + str(ID)
+
+    # with st.spinner('Chargement du score du client...'):
+    json_url = urlopen(API_url)
+
+    API_data = json.loads(json_url.read())
+    prediction_result = API_data['credit_bank_proba']
+    prediction_decision = API_data['credit_bank_decision']
     return prediction_decision, prediction_result
+
+
+# def predict(model, id_client, df):
+#   data_1 = df.drop('TARGET', axis=1)
+#  prediction_result = model.predict_proba(pd.DataFrame(data_1.loc[id_client]).transpose())[:, 1]
+#  prediction_bool = np.array((prediction_result > best_parameters['solvability_threshold']) > 0) * 1
+# if prediction_bool == 0:
+#     prediction_decision = 'Loan approved'
+# else:
+#    prediction_decision = 'Loan refused'
+# return prediction_decision, prediction_result
 
 
 def get_mean(feature, df, id):
@@ -102,7 +138,7 @@ def get_shap_fig(id_c):
 # Appel des fonstion définies:
 
 data = get_data('data_shap.csv')
-x_data = data.drop('TARGET',axis=1)
+x_data = data.drop('TARGET', axis=1)
 
 # Si le ID n'est pas dans la liste afficher un message:
 if input_id not in data.index.tolist():
@@ -111,12 +147,11 @@ else:
 
     # Décision de la banque et score:
 
-    bank_decision, probability = predict(model_load, input_id, data)
+    bank_decision, probability = get_API_decision(input_id)
     st.subheader(f'Bank decision for customer with ID: {input_id}')
 
-
-    st.write(f'##### Probability of default: {round(probability[0] * 100, 1)} (%)')
-    if bank_decision == 'Loan approved':
+    st.write(f'##### Probability of default: {round(probability * 100, 1)} (%)')
+    if bank_decision == 'loan approved':
         get_green_color(f'Bank decision: {bank_decision}')
     else:
         get_red_color(f'Bank decision: {bank_decision}')
@@ -125,7 +160,6 @@ else:
 
     explainer = shap.TreeExplainer(model_load)
     # st.write(explainer.expected_value[0],shap_values[1])
-
 
     st.subheader("Features importance")
     st_shap(get_shap_fig(input_id), 200)

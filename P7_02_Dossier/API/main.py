@@ -1,27 +1,28 @@
 # This is a sample Python script.
 
-import pickle
-
 # Press Maj+F10 to execute it or replace it with your code.
 # Press Double Shift to search everywhere for classes, files, tool windows, actions, and settings.
 import numpy as np
+import sklearn
 import pandas as pd
 import uvicorn
+import pickle
+import imblearn
+import lightgbm
 from fastapi import FastAPI
 from pydantic import BaseModel
+import lightgbm
 
 # On crée notre instance FastApi puis on définit l'objet enstiment
 app = FastAPI()
 
-
 class ScroringCredit(BaseModel):
     credit_bank_decision: str
     credit_bank_proba: float
-    message: str
 
 
 # On crée notre pipeline
-model_load = pickle.load(open('banking_model.md', 'rb'))
+model_load = pickle.load(open('model_shap.md', 'rb'))
 data = pd.read_csv('x_train_fastapi.csv', index_col=0)
 best_parameters = {'colsample_by_tree': 0.6000000000000001,
                    'learning_rate': 0.026478707430398492,
@@ -43,7 +44,6 @@ def get_root():
 
 @app.get('/predict/{id_client}', response_model=ScroringCredit)
 async def predict(id_client: int):
-
     prediction_result = model_load.predict_proba(pd.DataFrame(data.loc[id_client]).transpose())[:, 1]
     prediction_bool = np.array((prediction_result > best_parameters['solvability_threshold']) > 0) * 1
     if prediction_bool == 0:
